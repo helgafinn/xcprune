@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - run: swift --version
+      - run: swift build
+      - run: swift test
+
+      - name: Build release binary
+        run: swift build -c release
+
+      # The tool should survive being pointed at a project it did not expect,
+      # including one with no resources at all.
+      - name: Smoke test against an empty tree
+        run: |
+          mkdir -p /tmp/empty
+          ./.build/release/xcprune /tmp/empty
+          ./.build/release/xcprune /tmp/empty --format json
+          ./.build/release/xcprune --version
+
+      - name: Reject an invalid path
+        run: |
+          if ./.build/release/xcprune /tmp/definitely-not-here; then
+            echo "expected a non-zero exit for a missing directory"
+            exit 1
+          fi
