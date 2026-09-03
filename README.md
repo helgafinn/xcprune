@@ -4,7 +4,7 @@ Find unused images, colors, and localization keys in an Xcode project.
 
 Every app accumulates dead resources. An image survives the screen that used it, a localization key outlives the copy it translated, and nothing in Xcode tells you. They ship anyway, in every download, forever.
 
-The tools that used to do this have been unmaintained for years, and none of them understand a modern project. `xcprune` does, and it is built to be trusted rather than clever.
+Xcode 15 changed the ground here twice: it generates a Swift symbol per asset, so references no longer appear as string literals, and it introduced String Catalogs (`.xcstrings`) for localization. Tools that match on string literals report live assets as dead against the first change. [FengNiao](https://github.com/onevcat/FengNiao) handles images and asset symbols today and is worth using for that; it does not cover localization keys. `xcprune` reads both halves — asset catalogs and string tables including `.xcstrings` — and is built to be trusted rather than clever: anything it cannot resolve statically is reported as unresolved instead of guessed.
 
 ```text
 xcprune
