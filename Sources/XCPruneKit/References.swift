@@ -7,6 +7,13 @@ public struct ReferenceIndex: Sendable {
     public var literals: Set<String> = []
     /// Bare identifiers seen in source, used to match generated asset symbols.
     public var identifiers: Set<String> = []
+    /// `id` values of Interface Builder objects, e.g. `0cO-dq-wRh`.
+    ///
+    /// Xcode extracts localizable strings from a XIB into keys shaped
+    /// `<objectID>.<keyPath>`, and the nib loader resolves them by object ID at
+    /// load time. The key therefore never appears verbatim anywhere, so matching
+    /// it needs the ID set rather than the literal set.
+    public var interfaceObjectIDs: Set<String> = []
     /// Lookups whose argument was not a literal.
     public var dynamicUsages: [DynamicUsage] = []
     public var counts = ScanCounts()
@@ -68,6 +75,11 @@ public struct ReferenceScanner {
             }
             index.counts.interfaceFiles += 1
             ReferenceScanner.collectAttributeValues(from: text, into: &index.literals)
+
+            let ext = file.pathExtension.lowercased()
+            if ext == "xib" || ext == "storyboard" {
+                ReferenceScanner.collectObjectIDs(from: text, into: &index.interfaceObjectIDs)
+            }
         }
 
         return index
@@ -91,6 +103,21 @@ public struct ReferenceScanner {
             let content = String(source[contentRange])
             if content.contains("\\(") { continue }
             literals.insert(ReferenceScanner.unescape(content))
+        }
+    }
+
+    /// Interface Builder object identifiers, from `id="…"` attributes.
+    ///
+    /// These are what a XIB-derived localization key is keyed on, so collecting
+    /// them is what stops those keys being reported as unused.
+    static func collectObjectIDs(from text: String, into ids: inout Set<String>) {
+        let pattern = #"\bid="([^"]+)""#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+
+        for match in regex.matches(in: text, range: range) {
+            guard let idRange = Range(match.range(at: 1), in: text) else { continue }
+            ids.insert(String(text[idRange]))
         }
     }
 
