@@ -1,7 +1,7 @@
 import Foundation
 import XCPruneKit
 
-let version = "1.0.0"
+let version = "1.0.1"
 
 let help = """
 xcprune \(version)
