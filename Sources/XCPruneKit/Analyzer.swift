@@ -59,6 +59,11 @@ public struct Analyzer {
         if ignore.contains(resource.name) { return true }
         if index.literals.contains(resource.name) { return true }
 
+        if resource.kind == .localizationKey,
+           Analyzer.isInterfaceBuilderKey(resource.name, objectIDs: index.interfaceObjectIDs) {
+            return true
+        }
+
         if index.identifiers.contains(swiftSymbolName(for: resource.name)) { return true }
 
         if let tail = resource.name.split(separator: "/").last, tail != resource.name {
@@ -66,6 +71,21 @@ public struct Analyzer {
             if index.identifiers.contains(swiftSymbolName(for: String(tail))) { return true }
         }
         return false
+    }
+
+    /// Whether a localization key is one Xcode extracted from a XIB or storyboard.
+    ///
+    /// Those keys are shaped `<objectID>.<keyPath>`, for example
+    /// `0cO-dq-wRh.headerCell.title`, and the nib loader applies them by matching
+    /// the object ID at load time. Nothing in the project ever spells the key out,
+    /// so judging it by literal or symbol matching reports live UI strings as dead
+    /// — the precise failure this tool exists to avoid. Presence of the leading
+    /// object ID in a scanned interface file is the evidence that the key is live.
+    static func isInterfaceBuilderKey(_ key: String, objectIDs: Set<String>) -> Bool {
+        guard let head = key.split(separator: ".").first, head.count != key.count else {
+            return false
+        }
+        return objectIDs.contains(String(head))
     }
 
     /// The identifier Xcode generates for an asset name.

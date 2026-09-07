@@ -289,4 +289,52 @@ extension AnalyzerTests {
         XCTAssertEqual(report.unused(of: .image).map(\.name), ["orphan"])
         XCTAssertEqual(report.counts.interfaceFiles, 0)
     }
+
+    // MARK: - Interface Builder localization keys
+
+    func testXIBDerivedLocalizationKeyIsReachedByItsObjectID() throws {
+        let fixture = try Fixture()
+        // Xcode extracts a XIB's strings as `<objectID>.<keyPath>`. The nib loader
+        // applies them by object ID, so the key itself appears nowhere.
+        try fixture.write(
+            "App/Base.lproj/Window.xib",
+            #"<window id="0cO-dq-wRh"><tableColumn id="JJX-19-V6q"/></window>"#
+        )
+        try fixture.write(
+            "App/mul.lproj/Window.xcstrings",
+            #"{"sourceLanguage":"en","strings":{"0cO-dq-wRh.title":{},"JJX-19-V6q.headerCell.title":{}},"version":"1.0"}"#
+        )
+        XCTAssertEqual(names(try fixture.analyze(), .localizationKey), [])
+    }
+
+    func testKeyWithAnUnknownObjectIDIsStillReported() throws {
+        let fixture = try Fixture()
+        try fixture.write("App/Base.lproj/Window.xib", #"<window id="aaa-bb-ccc"/>"#)
+        try fixture.write(
+            "App/mul.lproj/Window.xcstrings",
+            #"{"sourceLanguage":"en","strings":{"zzz-99-xxx.title":{}},"version":"1.0"}"#
+        )
+        XCTAssertEqual(names(try fixture.analyze(), .localizationKey), ["zzz-99-xxx.title"])
+    }
+
+    func testObjectIDRuleDoesNotExcuseOrdinaryDottedKeys() throws {
+        let fixture = try Fixture()
+        // A dotted key is common in hand-written tables. It must not be waved
+        // through just for containing a dot.
+        try fixture.write("App/Base.lproj/Window.xib", #"<window id="0cO-dq-wRh"/>"#)
+        try fixture.write(
+            "App/mul.lproj/Localizable.xcstrings",
+            #"{"sourceLanguage":"en","strings":{"settings.title":{}},"version":"1.0"}"#
+        )
+        XCTAssertEqual(names(try fixture.analyze(), .localizationKey), ["settings.title"])
+    }
+
+    func testObjectIDsDoNotLeakIntoAssetMatching() throws {
+        let fixture = try Fixture()
+        // An asset must not be considered used merely because a XIB object shares
+        // its name as an id.
+        try fixture.asset("App/Assets.xcassets/orphan")
+        try fixture.write("App/Base.lproj/Window.xib", #"<window id="orphan"/>"#)
+        XCTAssertEqual(names(try fixture.analyze(), .image), ["orphan"])
+    }
 }
